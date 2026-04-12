@@ -1,13 +1,35 @@
 import { useState, useEffect, useRef } from 'react'
 import { collection, addDoc, getDocs, deleteDoc, doc, query, where, Timestamp } from 'firebase/firestore'
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
-import { db, storage } from '../firebase/config'
+import { db } from '../firebase/config'
 import BottomNav from '../components/BottomNav'
 
 const today = () => {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
 }
+
+function resizeImage(file, maxSize = 600) {
+  return new Promise((resolve) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        let w = img.width, h = img.height
+        if (w > h && w > maxSize) { h = (h * maxSize) / w; w = maxSize }
+        else if (h > maxSize) { w = (w * maxSize) / h; h = maxSize }
+        canvas.width = w; canvas.height = h
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h)
+        resolve(canvas.toDataURL('image/jpeg', 0.7))
+      }
+      img.src = e.target.result
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
+const TALLAS = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Única']
+const COLORES = ['Blanco', 'Negro', 'Gris', 'Azul', 'Rojo', 'Verde', 'Amarillo', 'Rosado', 'Beige', 'Morado', 'Naranjo', 'Celeste', 'Otro']
 
 function ProductCard({ product, onDelete }) {
   return (
@@ -34,6 +56,18 @@ function ProductCard({ product, onDelete }) {
       )}
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontWeight: 500, fontSize: 14, marginBottom: 4 }}>{product.name}</p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 4 }}>
+          {product.color && (
+            <span style={{ fontSize: 11, background: '#f4f4f4', borderRadius: 4, padding: '2px 7px', color: '#555' }}>
+              {product.color}
+            </span>
+          )}
+          {product.talla && (
+            <span style={{ fontSize: 11, background: '#f4f4f4', borderRadius: 4, padding: '2px 7px', color: '#555' }}>
+              Talla {product.talla}
+            </span>
+          )}
+        </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <span style={{ fontSize: 12, color: '#666' }}>Stock: <b style={{ color: '#0a0a0a' }}>{product.stock}</b></span>
           <span style={{ fontSize: 12, color: '#666' }}>Precio: <b style={{ color: '#0a0a0a' }}>S/ {Number(product.price).toFixed(2)}</b></span>
@@ -54,28 +88,23 @@ function AddProductModal({ onClose, onSave }) {
   const [name, setName] = useState('')
   const [stock, setStock] = useState('')
   const [price, setPrice] = useState('')
-  const [imageFile, setImageFile] = useState(null)
-  const [imagePreview, setImagePreview] = useState(null)
+  const [color, setColor] = useState('')
+  const [talla, setTalla] = useState('')
+  const [imageUrl, setImageUrl] = useState(null)
   const [saving, setSaving] = useState(false)
   const fileRef = useRef()
   const cameraRef = useRef()
 
-  function handleFile(file) {
+  async function handleFile(file) {
     if (!file) return
-    setImageFile(file)
-    setImagePreview(URL.createObjectURL(file))
+    const resized = await resizeImage(file)
+    setImageUrl(resized)
   }
 
   async function handleSave() {
     if (!name || !stock || !price) return
     setSaving(true)
-    let imageUrl = ''
-    if (imageFile) {
-      const storageRef = ref(storage, `products/${Date.now()}_${imageFile.name}`)
-      await uploadBytes(storageRef, imageFile)
-      imageUrl = await getDownloadURL(storageRef)
-    }
-    await onSave({ name, stock: Number(stock), price: Number(price), imageUrl, date: today() })
+    await onSave({ name, stock: Number(stock), price: Number(price), color, talla, imageUrl: imageUrl || '', date: today() })
     setSaving(false)
     onClose()
   }
@@ -88,6 +117,7 @@ function AddProductModal({ onClose, onSave }) {
       <div style={{
         background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 24px 40px',
         width: '100%', maxWidth: 480, animation: 'slideUp 0.25s ease',
+        maxHeight: '90vh', overflowY: 'auto',
       }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <p style={{ fontWeight: 500, fontSize: 16 }}>Nuevo producto</p>
@@ -95,12 +125,12 @@ function AddProductModal({ onClose, onSave }) {
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          {imagePreview ? (
+          {imageUrl ? (
             <div style={{ position: 'relative' }}>
-              <img src={imagePreview} alt="preview" style={{
+              <img src={imageUrl} alt="preview" style={{
                 width: '100%', height: 140, objectFit: 'cover', borderRadius: 10, border: '1px solid #e8e8e8',
               }} />
-              <button onClick={() => { setImageFile(null); setImagePreview(null) }} style={{
+              <button onClick={() => setImageUrl(null)} style={{
                 position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.5)',
                 color: '#fff', border: 'none', borderRadius: '50%', width: 28, height: 28,
                 cursor: 'pointer', fontSize: 14,
@@ -140,9 +170,29 @@ function AddProductModal({ onClose, onSave }) {
 
         <div style={{ marginBottom: 12 }}>
           <p className="field-label">Nombre del producto</p>
-          <input className="field-input" placeholder="Ej: Polera azul talla M" value={name} onChange={e => setName(e.target.value)} />
+          <input className="field-input" placeholder="Ej: Polera, Pantalón, Vestido..." value={name} onChange={e => setName(e.target.value)} />
         </div>
+
         <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+          <div style={{ flex: 1 }}>
+            <p className="field-label">Color</p>
+            <select className="field-input" value={color} onChange={e => setColor(e.target.value)}
+              style={{ appearance: 'none', cursor: 'pointer' }}>
+              <option value="">Sin color</option>
+              {COLORES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div style={{ flex: 1 }}>
+            <p className="field-label">Talla</p>
+            <select className="field-input" value={talla} onChange={e => setTalla(e.target.value)}
+              style={{ appearance: 'none', cursor: 'pointer' }}>
+              <option value="">Sin talla</option>
+              {TALLAS.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
           <div style={{ flex: 1 }}>
             <p className="field-label">Stock (unidades)</p>
             <input className="field-input" type="number" min="0" placeholder="0" value={stock} onChange={e => setStock(e.target.value)} />
