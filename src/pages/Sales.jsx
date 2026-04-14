@@ -159,9 +159,8 @@ export default function Sales() {
 
   async function fetchData() {
     setLoading(true)
-    const pq = query(collection(db, 'products'), where('date', '==', today()))
-    const psnap = await getDocs(pq)
-    const prods = psnap.docs.map(d => ({ id: d.id, ...d.data() }))
+    const psnap = await getDocs(collection(db, 'products'))
+    const prods = psnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.stock > 0).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
     setProducts(prods)
     const sq = query(collection(db, 'sales'), where('date', '==', today()))
     const ssnap = await getDocs(sq)

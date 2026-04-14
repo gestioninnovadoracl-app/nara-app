@@ -218,9 +218,9 @@ export default function Inventory() {
 
   async function fetchProducts() {
     setLoading(true)
-    const q = query(collection(db, 'products'), where('date', '==', today()))
-    const snap = await getDocs(q)
-    setProducts(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    const snap = await getDocs(collection(db, 'products'))
+    const all = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    setProducts(all.filter(p => p.stock > 0).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)))
     setLoading(false)
   }
 
@@ -281,4 +281,3 @@ export default function Inventory() {
     </div>
   )
 }
-// updated Sun Apr 12 18:46:16 -04 2026
