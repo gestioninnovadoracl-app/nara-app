@@ -142,7 +142,16 @@ function ProductModal({ initial, onClose, onSave }) {
 
   function addVariant() {
     if (!stock) return
-    setVariants(v => [...v, { id: Date.now().toString(), color, talla, stock: Number(stock) }])
+    setVariants(prev => {
+      const existing = prev.find(v => v.color === color && v.talla === talla)
+      if (existing) {
+        return prev.map(v => v.color === color && v.talla === talla
+          ? { ...v, stock: v.stock + Number(stock) }
+          : v
+        )
+      }
+      return [...prev, { id: Date.now().toString(), color, talla, stock: Number(stock) }]
+    })
     setColor(''); setTalla(''); setStock('')
   }
 
