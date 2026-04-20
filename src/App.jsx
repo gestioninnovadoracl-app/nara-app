@@ -6,6 +6,7 @@ import Login from './pages/Login'
 import Inventory from './pages/Inventory'
 import Sales from './pages/Sales'
 import History from './pages/History'
+import Report from './pages/Report'
 
 export const AuthContext = createContext(null)
 export const useAuth = () => useContext(AuthContext)
@@ -41,6 +42,7 @@ export default function App() {
           <Route path="/" element={<PrivateRoute><Inventory /></PrivateRoute>} />
           <Route path="/ventas" element={<PrivateRoute><Sales /></PrivateRoute>} />
           <Route path="/historial" element={<PrivateRoute><History /></PrivateRoute>} />
+          <Route path="/reporte" element={<PrivateRoute><Report /></PrivateRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
